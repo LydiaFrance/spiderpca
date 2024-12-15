@@ -8,7 +8,7 @@ Running PCA on spider biomechanics data
 
 - Python 3.10 or higher
 - pip (Python package installer)
-- git (for installation from source)
+- git (for cloning the repository)
 
 ### Installation
 
@@ -54,13 +54,13 @@ The functions used in the notebooks are in the `src/spiderpca` directory.
 
 ### 1. Data Preparation and Visualization
 [`01_prep_and_visualise.ipynb`](examples/01_prep_and_visualise.ipynb)
-- Learn how to load and preprocess spider movement data
+- Load and preprocess spider movement data
 - Visualise raw movement patterns
 - Prepare data for PCA analysis
 
 ### 2. Full Shape PCA Analysis
 [`02_full_shape_PCA.ipynb`](examples/02_full_shape_PCA.ipynb)
-- Apply PCA to analyze movement patterns
+- Apply PCA to full spider shape to analyse movement patterns
 - Interpret principal components
 - Visualise results and movement variations
 - Compare experimental conditions
