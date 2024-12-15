@@ -44,6 +44,10 @@ pip install -e .
 
 Navigate to the `examples/` directory and open the desired notebook with Jupyter or JupyterLab. 
 
+## Data
+
+I have not included the data in the repository, but you should put it in the `data/` directory.
+
 ## Walkthrough Notebooks
 
 The functions used in the notebooks are in the `src/spiderpca` directory.
