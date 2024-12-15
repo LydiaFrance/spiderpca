@@ -1,6 +1,9 @@
 # spiderpca
 
-Running PCA on spider biomechanics data
+Running PCA on spider biomechanics data. 
+
+<img src="examples/images/spider_defs.png" alt="Spider" style="width: 80%;">
+
 
 ## Installation
 
@@ -65,7 +68,7 @@ The functions used in the notebooks are in the `src/spiderpca` directory.
 - Visualise results and movement variations
 - Compare experimental conditions
 
-### TBC
+### _TBC: 3. Leg Agnostic PCA Analysis_
 
 ## License
 
