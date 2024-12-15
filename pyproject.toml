@@ -26,7 +26,21 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering",
 ]
-dependencies = []
+dependencies = ['numpy', 
+                'pandas',
+                'ipykernel',
+                'matplotlib', 
+                'seaborn', 
+                'scikit-learn', 
+                "ipympl",
+                "plotly",
+                "dash",
+                "pyyaml",
+                "notebook==6.1.5",
+                'pyprojroot',
+                'kaleido',
+                 'morphing_birds @ git+https://github.com/LydiaFrance/morphing_birds@refactor']
+
 
 [project.optional-dependencies]
 dev = [
