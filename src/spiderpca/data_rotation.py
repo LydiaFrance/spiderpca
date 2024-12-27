@@ -61,3 +61,4 @@ def undo_body_rotation(markers, whole_body_angle, degrees=True, which_axis='z'):
         corrected_markers[i] = markers[i] @ rotation_matrix.T
     
     return corrected_markers
+

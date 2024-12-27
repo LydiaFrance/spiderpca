@@ -59,6 +59,8 @@ def get_all_legs_markers(marker_names, markers, num_legs):
     
     # Stack into a single array with shape [frames, leg, keypoints, dims]
     all_legs = np.stack(all_legs, axis=1)
+    print(f"All legs shape: {all_legs.shape}")
+    print(f"Frames: {all_legs.shape[0]}, Legs: {all_legs.shape[1]}, Keypoints: {all_legs.shape[2]}, Dims: {all_legs.shape[3]}")
 
     # Make a matrix with original dimensions of  [frames, markers, dims]
     # This is just for testing
@@ -133,101 +135,125 @@ def put_legs_back(
     return reconstructed_markers
 
 
-def get_leg_pair(marker_names, markers, leg_pair):
+def make_coxa_origin(all_legs):
     """
-    Extracts markers for a bilateral leg pair.
+    Translates all points so that the coxa (4th keypoint) becomes the origin for each leg.
     
     Parameters:
-        marker_names (list of str): List of all marker names.
-        markers (ndarray): 3D array of shape (n_instances, n_markers, 3).
-        leg_pair (tuple): Tuple of two leg IDs (e.g., (1,8) for front legs).
-        
+        all_legs (ndarray): Array of shape [nFrames, nLegs, 4, 3] where the last two dimensions are
+                          keypoints and xyz coordinates, and coxa is the 4th keypoint
+    
     Returns:
-        ndarray: Markers for the leg pair, shape (n_instances, 2, n_leg_markers, 3).
-        list of list of str: Names of markers for each leg in the pair.
+        ndarray: Array of same shape with all points translated relative to coxa
+        ndarray: Array of shape [nFrames, nLegs, 4, 3] containing the coxa positions
     """
-    leg1_markers, leg1_names = get_leg_markers(marker_names, markers, leg_pair[0])
-    leg2_markers, leg2_names = get_leg_markers(marker_names, markers, leg_pair[1])
+    # Make a copy to avoid modifying the original
+    all_legs = all_legs.copy()
     
-    # Stack the leg pairs together
-    pair_markers = np.stack([leg1_markers, leg2_markers], axis=1)
-    pair_names = [leg1_names, leg2_names]
+    # Get the coxa positions (index -1 for last keypoint)
+    coxa = all_legs[..., -1:, :]
     
-    return pair_markers, pair_names
+    # Subtract coxa position from all points
+    all_legs = all_legs - coxa
+    
+    return all_legs, coxa
 
-def get_all_leg_pairs(marker_names, markers):
+def unmake_coxa_origin(all_legs, coxa):
+    return all_legs + coxa
+
+
+
+def reflect_legs(all_legs):
     """
-    Extracts all bilateral leg pairs and returns them with anatomical names.
+    Reflects the left legs (5-8) to match right legs (1-4)
+
+    Parameters:
+        all_legs (ndarray): Array of shape [nframes, nlegs, nkeypoints, ndims]
+    
+    Returns:
+        ndarray: Array of shape [nframes, nlegs, nkeypoints, ndims] with left legs reflected
+    """
+
+    # Reflect the left legs (y-coordinate)
+    # Note: Python 0-based indexing, so legs 5-8 are indices 4-7
+
+
+    all_legs = all_legs.copy()
+    all_legs[:, 4:8, :, 1] = -all_legs[:, 4:8, :, 1]
+
+    return all_legs
+
+def combine_legs(all_legs):
+    """
+    Reflects the left legs (5-8) to match right legs (1-4) and combines them.
     
     Parameters:
-        marker_names (list of str): List of all marker names.
-        markers (ndarray): 3D array of shape (n_instances, n_markers, 3).
-        
-    Returns:
-        dict: Dictionary with leg pair names as keys and tuples of (markers, marker_names) as values.
-    """
-    leg_pairs = {
-        'front': (1, 8),
-        'mid_front': (2, 7),
-        'mid_back': (3, 6),
-        'back': (4, 5)
-    }
-    
-    pairs_dict = {}
-    for pair_name, pair_ids in leg_pairs.items():
-        pair_markers, pair_names = get_leg_pair(marker_names, markers, pair_name, pair_ids)
-        pairs_dict[pair_name] = (pair_markers, pair_names)
-    
-    return pairs_dict
-
-def put_leg_pairs_back(leg_pairs_dict, original_marker_names, spider3d_markers, original_markers=None):
-    """
-    Reconstructs the full markers dataset from the leg pairs format back to the original format.
-    
-    Parameters:
-        leg_pairs_dict (dict): Dictionary from get_all_leg_pairs with leg pair names as keys 
-                              and tuples of (markers, marker_names) as values.
-        original_marker_names (list of str): Full list of marker names in the original dataset.
-        spider3d_markers (ndarray): Reference markers array of shape [nmarkers, 3].
-        original_markers (ndarray, optional): Original markers array before pairing [nframes, nmarkers, 3].
-                                            If provided, used for non-leg markers.
+        all_legs (ndarray): Array of shape [nframes, nlegs, nkeypoints, ndims]
     
     Returns:
-        ndarray: Full reconstructed markers array with shape [nframes, nmarkers, 3].
+        ndarray: Array of shape [nframes*2, nlegs//2, nkeypoints, ndims] where frames 
+                dimension now includes both original and reflected legs
     """
-    # Get dimensions from the first leg pair
-    first_pair = next(iter(leg_pairs_dict.values()))
-    nframes = first_pair[0].shape[0]
-    nmarkers = len(original_marker_names)
-    ndims = first_pair[0].shape[-1]
+    # Make a copy to avoid modifying the original
+    all_legs = all_legs.copy()
+    
+    # Reshape to combine corresponding left-right pairs
+    nframes, _, nkeypoints, ndims = all_legs.shape
+    # Separate into left and right legs and stack them as new frames
+    right_legs = all_legs[:, :4]  # legs 1-4
+    left_legs = all_legs[:, 4:]   # legs 5-8
+    
+    # Stack right and left legs along the frames dimension
+    combined_legs = np.concatenate([right_legs, left_legs], axis=0)
+    
+    print(f"Combined legs shape: {combined_legs.shape}")  # Should be (nframes*2, 4, 4, 3)
+    return combined_legs
 
-    # Initialize reconstructed markers
-    reconstructed_markers = np.zeros((nframes, nmarkers, ndims))
 
-    # Create a mapping from marker names to their data in the leg pairs
-    leg_marker_to_data = {}
-    for pair_name, (pair_markers, pair_names) in leg_pairs_dict.items():
-        # Left leg (index 0)
-        for marker_idx, marker_name in enumerate(pair_names[0]):
-            leg_marker_to_data[marker_name] = pair_markers[:, 0, marker_idx, :]
-        # Right leg (index 1)
-        for marker_idx, marker_name in enumerate(pair_names[1]):
-            leg_marker_to_data[marker_name] = pair_markers[:, 1, marker_idx, :]
+def restore_leg_positions(reconstructed_frames, spider3d, all_legs_names):
+    """
+    Transform reconstructed leg movements back to original coordinate space.
+    
+    Parameters
+    ----------
+    reconstructed_frames : ndarray
+        Reconstructed frames from PCA, shape (n_frames, n_markers, 3)
+    spider3d : Spider3D
+        Spider3D object containing marker information
+    nLegs : int
+        Number of legs
+    all_legs_names : list
+        List of marker names for each leg
+    
+    Returns
+    -------
+    ndarray
+        Reconstructed markers in original coordinate space
+    """
+    # Get coxa indices
 
-    # Fill in markers based on their source
-    for marker_idx, marker_name in enumerate(original_marker_names):
-        if marker_name in leg_marker_to_data:  # If it's a leg marker
-            reconstructed_markers[:, marker_idx, :] = leg_marker_to_data[marker_name]
-        elif original_markers is not None:  # Use original markers for non-leg markers
-            reconstructed_markers[:, marker_idx, :] = original_markers[:, marker_idx, :]
-        else:  # Default to spider3d_markers for non-leg markers
-            reconstructed_markers[:, marker_idx, :] = spider3d_markers[:, marker_idx, :]
+    nLegs = 8
 
-    # Restore the coxa markers (similar to put_legs_back)
-    if original_markers is None:
-        coxa_markers_names = [name for name in original_marker_names if "coxa" in name]
-        coxa_markers_indices = [original_marker_names.index(name) for name in coxa_markers_names]
-        coxa_markers = spider3d_markers[:, coxa_markers_indices, :]
-        reconstructed_markers[:, coxa_markers_indices, :] = coxa_markers
-
-    return reconstructed_markers
+    coxa_names = [f"coxa{i}" for i in range(1, nLegs + 1)]
+    coxa_indices = spider3d.skeleton_definition.get_marker_indices(coxa_names)
+    
+    # Add leg dimension and repeat for each leg
+    reconstructed_frames = np.expand_dims(reconstructed_frames, axis=1)
+    reconstructed_frames = np.repeat(reconstructed_frames, nLegs, axis=1)
+    
+    # Prepare coxa positions
+    original_coxa_positions = spider3d.markers[:, coxa_indices, :]
+    original_coxa_positions = np.repeat(original_coxa_positions, reconstructed_frames.shape[0], axis=0)
+    original_coxa_positions = np.expand_dims(original_coxa_positions, axis=2)
+    
+    # Transform back to original coordinate space
+    restored_legs = reflect_legs(reconstructed_frames)
+    restored_legs = unmake_coxa_origin(restored_legs, original_coxa_positions)
+    restored_legs = put_legs_back(
+        all_legs=restored_legs,
+        all_legs_names=all_legs_names,
+        spider3d_markers=spider3d.markers.reshape(1, -1, 3),
+        original_marker_names=spider3d.marker_names,
+    )
+    
+    return restored_legs

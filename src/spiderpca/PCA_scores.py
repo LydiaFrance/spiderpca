@@ -26,15 +26,15 @@ def get_score_range(scores, num_frames=30):
     return score_frames
 
 
-def create_scores_dataframe(scores, spider_data_df, time_column='time_in_frames', filename_column='filename', sq_level_column='sq_level'):
+def create_scores_dataframe(scores, spider_data_df, time_column='time_in_frames', filename_column='filename', sq_level_column='sq_level', leg_number=None):
     """
-    Create a DataFrame containing PCA scores and metadata.
+    Create a DataFrame containing PCA scores, metadata, and leg information.
     
     Parameters
     ----------
     scores : numpy.ndarray
         PCA scores array
-    metadata_df : pandas.DataFrame
+    spider_data_df : pandas.DataFrame
         DataFrame containing metadata (must include time, filename, and sq_level columns)
     time_column : str, optional
         Name of the column containing time information (default: 'time_in_frames')
@@ -42,11 +42,13 @@ def create_scores_dataframe(scores, spider_data_df, time_column='time_in_frames'
         Name of the column containing filename/sequence IDs (default: 'filename')
     sq_level_column : str, optional
         Name of the column containing sq_level information (default: 'sq_level')
+    leg_number : int, optional
+        Leg number to add as a column (default: None)
     
     Returns
     -------
     pandas.DataFrame
-        DataFrame containing PCA scores and metadata
+        DataFrame containing PCA scores, metadata, and leg information
     """
     # Create DataFrame with PC scores
     scores_df = pd.DataFrame(scores, columns=[f"PC{i+1}" for i in range(scores.shape[1])])
@@ -55,5 +57,9 @@ def create_scores_dataframe(scores, spider_data_df, time_column='time_in_frames'
     scores_df["sq_level"] = spider_data_df[sq_level_column].to_numpy()
     scores_df["sequenceID"] = spider_data_df[filename_column]
     scores_df["time_in_frames"] = spider_data_df[time_column].to_numpy()
+    
+    # Add leg number column
+    if leg_number is not None:
+        scores_df["leg_number"] = leg_number
     
     return scores_df
