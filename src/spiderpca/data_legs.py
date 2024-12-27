@@ -131,3 +131,103 @@ def put_legs_back(
     
 
     return reconstructed_markers
+
+
+def get_leg_pair(marker_names, markers, leg_pair):
+    """
+    Extracts markers for a bilateral leg pair.
+    
+    Parameters:
+        marker_names (list of str): List of all marker names.
+        markers (ndarray): 3D array of shape (n_instances, n_markers, 3).
+        leg_pair (tuple): Tuple of two leg IDs (e.g., (1,8) for front legs).
+        
+    Returns:
+        ndarray: Markers for the leg pair, shape (n_instances, 2, n_leg_markers, 3).
+        list of list of str: Names of markers for each leg in the pair.
+    """
+    leg1_markers, leg1_names = get_leg_markers(marker_names, markers, leg_pair[0])
+    leg2_markers, leg2_names = get_leg_markers(marker_names, markers, leg_pair[1])
+    
+    # Stack the leg pairs together
+    pair_markers = np.stack([leg1_markers, leg2_markers], axis=1)
+    pair_names = [leg1_names, leg2_names]
+    
+    return pair_markers, pair_names
+
+def get_all_leg_pairs(marker_names, markers):
+    """
+    Extracts all bilateral leg pairs and returns them with anatomical names.
+    
+    Parameters:
+        marker_names (list of str): List of all marker names.
+        markers (ndarray): 3D array of shape (n_instances, n_markers, 3).
+        
+    Returns:
+        dict: Dictionary with leg pair names as keys and tuples of (markers, marker_names) as values.
+    """
+    leg_pairs = {
+        'front': (1, 8),
+        'mid_front': (2, 7),
+        'mid_back': (3, 6),
+        'back': (4, 5)
+    }
+    
+    pairs_dict = {}
+    for pair_name, pair_ids in leg_pairs.items():
+        pair_markers, pair_names = get_leg_pair(marker_names, markers, pair_name, pair_ids)
+        pairs_dict[pair_name] = (pair_markers, pair_names)
+    
+    return pairs_dict
+
+def put_leg_pairs_back(leg_pairs_dict, original_marker_names, spider3d_markers, original_markers=None):
+    """
+    Reconstructs the full markers dataset from the leg pairs format back to the original format.
+    
+    Parameters:
+        leg_pairs_dict (dict): Dictionary from get_all_leg_pairs with leg pair names as keys 
+                              and tuples of (markers, marker_names) as values.
+        original_marker_names (list of str): Full list of marker names in the original dataset.
+        spider3d_markers (ndarray): Reference markers array of shape [nmarkers, 3].
+        original_markers (ndarray, optional): Original markers array before pairing [nframes, nmarkers, 3].
+                                            If provided, used for non-leg markers.
+    
+    Returns:
+        ndarray: Full reconstructed markers array with shape [nframes, nmarkers, 3].
+    """
+    # Get dimensions from the first leg pair
+    first_pair = next(iter(leg_pairs_dict.values()))
+    nframes = first_pair[0].shape[0]
+    nmarkers = len(original_marker_names)
+    ndims = first_pair[0].shape[-1]
+
+    # Initialize reconstructed markers
+    reconstructed_markers = np.zeros((nframes, nmarkers, ndims))
+
+    # Create a mapping from marker names to their data in the leg pairs
+    leg_marker_to_data = {}
+    for pair_name, (pair_markers, pair_names) in leg_pairs_dict.items():
+        # Left leg (index 0)
+        for marker_idx, marker_name in enumerate(pair_names[0]):
+            leg_marker_to_data[marker_name] = pair_markers[:, 0, marker_idx, :]
+        # Right leg (index 1)
+        for marker_idx, marker_name in enumerate(pair_names[1]):
+            leg_marker_to_data[marker_name] = pair_markers[:, 1, marker_idx, :]
+
+    # Fill in markers based on their source
+    for marker_idx, marker_name in enumerate(original_marker_names):
+        if marker_name in leg_marker_to_data:  # If it's a leg marker
+            reconstructed_markers[:, marker_idx, :] = leg_marker_to_data[marker_name]
+        elif original_markers is not None:  # Use original markers for non-leg markers
+            reconstructed_markers[:, marker_idx, :] = original_markers[:, marker_idx, :]
+        else:  # Default to spider3d_markers for non-leg markers
+            reconstructed_markers[:, marker_idx, :] = spider3d_markers[:, marker_idx, :]
+
+    # Restore the coxa markers (similar to put_legs_back)
+    if original_markers is None:
+        coxa_markers_names = [name for name in original_marker_names if "coxa" in name]
+        coxa_markers_indices = [original_marker_names.index(name) for name in coxa_markers_names]
+        coxa_markers = spider3d_markers[:, coxa_markers_indices, :]
+        reconstructed_markers[:, coxa_markers_indices, :] = coxa_markers
+
+    return reconstructed_markers
